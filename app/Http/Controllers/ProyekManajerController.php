@@ -50,7 +50,6 @@ class ProyekManajerController extends Controller
             Log::info('Projects to sync: ', $request->projects);
             foreach ($request->projects as $projectId) {
                 $pivotData[$projectId] = [
-                    'id' => Str::uuid(),        // generate UUID
                     'is_notified' => true,
                 ];
             }
@@ -65,32 +64,44 @@ class ProyekManajerController extends Controller
     {
         $pm = ProyekManajer::with('projects')->findOrFail($id);
         $projects = Project::all();
-        return view('project_managers.edit', compact('pm', 'projects'));
+        $users = Employee::all(); // ⬅️ ambil semua employee
+        return view('dashboard.project-manager.edit-project-manager', compact('pm', 'projects', 'users'));
     }
 
     // Menyimpan update PM
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'nama_pm' => 'required|string|max:255',
+        $validated = $request->validate([
+            'user_id' => 'required|exists:employees,id',
             'email' => 'nullable|email',
             'projects' => 'nullable|array',
-            'projects.*.id' => 'required|exists:projects,id',
-            'projects.*.is_notified' => 'required|boolean'
+            'projects.*.id' => 'nullable|exists:projects,id',
+            'projects.*.is_notified' => 'nullable|boolean'
         ]);
+
+        
+        $user = Employee::find($validated['user_id']);
+        Log::info('Updating PM with user: ', ['user' => $user]);
 
         $pm = ProyekManajer::findOrFail($id);
         $pm->update([
-            'nama_pm' => $request->nama_pm,
-            'email' => $request->email,
+            'nama_pm' => $user->nama_lengkap,
+            'email' => $validated['email'],
         ]);
 
         // Update proyek terkait
-        $pivotData = [];
-        foreach ($request->projects as $p) {
-            $pivotData[$p['id']] = ['is_notified' => $p['is_notified']];
+        if ($request->has('projects')) {
+            $pivotData = [];
+            foreach ($request->projects as $project) {
+                if (isset($project['id']) && !empty($project['id'])) {
+                    $pivotData[$project['id']] = [
+                        'is_notified' => isset($project['is_notified']) ? 1 : 0
+                    ];
+                }
+            }
+            $pm->projects()->sync($pivotData);
         }
-        $pm->projects()->sync($pivotData);
+
 
         return redirect()->route('project-managers.index')->with('success', 'PM berhasil diperbarui.');
     }

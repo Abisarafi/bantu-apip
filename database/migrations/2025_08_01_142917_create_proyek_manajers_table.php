@@ -20,7 +20,7 @@ return new class extends Migration
         });
 
         Schema::create('project_manager_projects', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            // $table->uuid('id')->primary();
             $table->uuid('project_manager_id');
             $table->uuid('project_id');
             $table->boolean('is_notified')->default(true);
